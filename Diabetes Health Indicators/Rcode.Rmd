@@ -1,0 +1,239 @@
+---
+title: "Diabetes Binaries EDA and Predictive Model"
+author: "jovi"
+date: "2023-05-11"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(readr)
+library(dplyr)
+```
+
+```{r}
+df <- read.csv("C:\\Users\\joviy\\diabetes_binary_health_indicators_BRFSS2015.csv")
+```
+
+
+```{r}
+head(df)
+```
+
+```{r}
+df <- subset(df, !duplicated(df))
+summary(df)
+```
+Removing duplicates and summarize data
+
+
+```{r}
+colSums(is.na(df))
+```
+No missing Values
+
+```{r}
+dim(df)
+```
+
+```{r}
+col_classes <- sapply(df, class)
+col_classes
+```
+Print Column names
+```{r}
+hist(df$BMI, xlab = "BMI",
+     col = "red", border = "black",
+     xlim = c(0, 60),
+     main = "BMI Frequency")
+```
+
+```{r}
+hist(df$Age, xlab = "Age",
+     col = "red", border = "black",
+     main = "Age Frequency")
+```
+
+```{r}
+ggplot(df, aes(x = factor(Diabetes_binary))) +
+  geom_bar() +
+  labs(title = "Count Plot", x = "Diabetes", y = "Count")
+```
+```{r}
+hist(df$MentHlth, xlab = "Mental Health",
+     col = "red", border = "black",
+     main = "Mental Health Frequency")
+```
+```{r}
+hist(df$MentHlth, xlab = "Education Level",
+     col = "red", border = "black",
+     main = "Education Frequency")
+```
+
+
+```{r}
+ggplot(df, aes(x= factor(Diabetes_binary)),
+       xlab="Diabetes Indicator") + geom_bar()
+```
+
+```{r}
+# Create a new data frame with counts of each combination of diabetes_binary and highChol
+counts <- df %>% group_by(Diabetes_binary, HighChol) %>% summarise(count = n())
+
+# Create a stacked bar chart
+ggplot(counts, aes(x = Diabetes_binary, y = count, fill = factor(HighChol))) +
+  geom_bar(stat = "identity") +
+  guides(fill = guide_legend(title = "HighChol"))
+```
+
+```{r}
+# Create a new data frame with counts of each combination of diabetes_binary and Stroke
+counts <- df %>% group_by(Diabetes_binary, Stroke) %>% summarise(count = n())
+
+# Create a stacked bar chart
+ggplot(counts, aes(x = Diabetes_binary, y = count, fill = factor(Stroke))) +
+  geom_bar(stat = "identity") +
+  guides(fill = guide_legend(title = "Stroke"))
+```
+
+```{r}
+# Create a new data frame with counts of each combination of diabetes_binary and Smoker
+counts <- df %>% group_by(Diabetes_binary, Smoker) %>% summarise(count = n())
+
+# Create a stacked bar chart
+ggplot(counts, aes(x = Diabetes_binary, y = count, fill = factor(Smoker))) +
+  geom_bar(stat = "identity") +
+  guides(fill = guide_legend(title = "Smoker"))
+```
+
+```{r}
+# Create a new data frame with counts of each combination of diabetes_binary and HeartDiseaseorAttack
+counts <- df %>% group_by(Diabetes_binary, HeartDiseaseorAttack) %>% summarise(count = n())
+
+# Create a stacked bar chart
+ggplot(counts, aes(x = Diabetes_binary, y = count, fill = factor(HeartDiseaseorAttack))) +
+  geom_bar(stat = "identity") +
+  guides(fill = guide_legend(title = "HeartDiseaseorAttack"))
+```
+
+STATISTICAL TESTING
+```{r}
+# Chi square test 
+
+features <- df[,-1]
+
+for (col in names(features)) {
+  # Create a contingency table of the feature and the label
+  table <- table(features[[col]], df$Diabetes_binary)
+  
+  # Perform the chi-square test
+  result <- chisq.test(table)
+  
+  # Print the result
+  cat("Chi-square test for", col, "\n")
+  print(result)
+  cat("\n")
+}
+
+```
+in CHi2 test all variable has the p-value of <2.2e-16 which means the variables are significant
+```{r}
+# T-test
+
+features <- df[,-1]
+
+for (col in names(features)) {
+  # Create a contingency table of the feature and the label
+  table <- table(features[[col]], df$Diabetes_binary)
+  
+  # Perform the chi-square test
+  result <- t.test(table)
+  
+  # Print the result
+  cat("T- Test for", col, "\n")
+  print(result)
+  cat("\n")
+}
+```
+Summary: using p-value < 0.05 for significancy from the test we get these variable that reject null hypothesis : BMI, GenHlth, Age,  Education, Income.
+evaluting the scores of the variable BMI and Age is the top 2 highest t-test score meaning this 2 variable may contribute the most in predictive model
+
+```{r}
+# Anova Testing
+fit <- lm(GenHlth ~ Education, data = df)
+anova(fit)
+
+features <- df[,-1]
+
+for (col in names(features)) {
+  # Perform the ANOVA test
+  model <- aov(features[[col]] ~ df$Diabetes_binary)
+  
+  # Print the ANOVA table
+  cat("ANOVA for", col, "\n")
+  print(summary(model))
+  cat("\n")
+}
+```
+Summary :
+in the test each of features have p-value of <2e-16 which means using anova all features has strong evidence to reject null hypotesis a high F-score means that it represent ratio of variance between group so in this test features with high scores are : HighBP, HighChol, BMI, HeartDiseaseorAttack, GenHlth , DiffWalk , Age , PhysHlth and Income may have significant contribution in the predictive model
+
+
+```{r}
+correlations <- cor(df)
+target_correlations <- correlations["Diabetes_binary", ]
+target_correlations
+
+correlation_data <- melt(correlations)
+
+ggplot(correlation_data, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_minimal() +
+  labs(title = "Correlation Heatmap") +
+  coord_equal(ratio = 1) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+```
+Cheking correlations of features to the label
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+model <- rpart(Diabetes_binary ~ ., data = df)
+```
+
+```{r}
+summary(model)
+```
+
+
+```{r}
+library(caret)
+varImp(model)
+```
+shows the variable importance meassure
+```{r}
+rpart.plot(model, extra = "auto")
+```
+
+```{r}
+predictions <- predict(model, newdata = df)
+
+# Convert predicted probabilities to class labels (., 0 or 1)
+predicted_classes <- ifelse(predictions >= 0.5, 1, 0)
+
+# Calculate accuracy
+accuracy <- mean(predicted_classes == df$Diabetes_binary)
+
+# Calculate ROC curve and AUC
+library(pROC)
+roc_obj <- roc(df$Diabetes_binary, predictions)
+roc_auc <- auc(roc_obj)
+
+
+# Print the accuracy and AUC
+print(paste("Accuracy:", accuracy))
+print(paste("ROC AUC:", roc_auc))
+```
