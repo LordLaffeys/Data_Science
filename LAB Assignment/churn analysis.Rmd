@@ -1,0 +1,144 @@
+---
+title: "Jovian Yanto"
+output: html_document
+date: "2023-05-09"
+---
+
+```{r cars}
+library(ggplot2)
+library(corrplot)
+library(readr)
+library(dplyr)
+library(caret)
+library(ranger)
+library(MLmetrics)
+library(rpart)
+library(rpart.plot)
+df <- read.csv("C:\\Users\\joviy\\WA_Fn-UseC_-Telco-Customer-Churn.csv")
+```
+
+```{r}
+head(df)
+```
+
+
+```{r}
+dim(df)
+```
+
+```{r}
+str(df)
+```
+```{r}
+summary(df)
+```
+```{r}
+colSums(is.na(df))
+```
+```{r}
+median_val <- median(df$TotalCharges, na.rm = TRUE)
+df$TotalCharges[is.na(df$TotalCharges)] <- median_val
+colSums(is.na(df))
+```
+
+```{r}
+churn_rate <- sum(df$Churn == "Yes") / nrow(df) * 100
+cat("Churn rate:", round(churn_rate, 2), "%\n")
+```
+```{r}
+df$gender <- ifelse(df$gender == "Male", 1, 0)
+df$Partner <- ifelse(df$Partner == "Yes", 1, 0)
+df$Dependents <- ifelse(df$Dependents == "Yes", 1, 0)
+df$PhoneService <- ifelse(df$PhoneService == "Yes", 1, 0)
+df$MultipleLines <- ifelse(df$MultipleLines == "Yes", 1, 0)
+df$InternetService <- ifelse(df$InternetService == "Fiber optic", 1, ifelse(df$InternetService == "DSL", 2, 0))
+df$OnlineSecurity <- ifelse(df$OnlineSecurity == "Yes", 1, 0)
+df$OnlineBackup <- ifelse(df$OnlineBackup == "Yes", 1, 0)
+df$DeviceProtection <- ifelse(df$DeviceProtection == "Yes", 1, 0)
+df$TechSupport <- ifelse(df$TechSupport == "Yes", 1, 0)
+df$StreamingTV <- ifelse(df$StreamingTV == "Yes", 1, 0)
+df$StreamingMovies <- ifelse(df$StreamingMovies == "Yes", 1, 0)
+df$Contract <- ifelse(df$Contract == "Month-to-month", 1, ifelse(df$Contract == "One year", 2, 3))
+df$PaperlessBilling <- ifelse(df$PaperlessBilling == "Yes", 1, 0)
+df$PaymentMethod <- ifelse(df$PaymentMethod == "Electronic check", 1, ifelse(df$PaymentMethod == "Mailed check", 2, ifelse(df$PaymentMethod == "Bank transfer (automatic)", 3, 4)))
+df$Churn <- ifelse(df$Churn == "Yes", 1, 0)
+```
+
+```{r}
+hist(df$tenure, main = "Client tenure", xlab = "in Months", xlim = range(0, 80))
+```
+```{r}
+boxplot(df$MonthlyCharges ~ df$Churn, main = "Monthly charges by churnned", ylab = "Monthly charges", xlab = "Status")
+```
+
+```{r}
+plot(x=df$D, y=df$TotalCharges, xlab = "Tenure", ylab = "Total charges", pch = 18)
+```
+
+```{r}
+set.seed(42)
+df  <- subset(df, select = -customerID)
+
+indices <- createDataPartition(df$Churn, p = 0.7, list = FALSE)
+train <- df[indices, ]
+test <- df[-indices, ]
+
+train_X <- train[, !names(train) %in% "Churn"] 
+train_y <- train$Churn   
+test_X <- test[, !names(test) %in% "Churn"]
+test_y <- test$Churn
+
+DT <- rpart(train_y ~ ., data = train_X)
+
+summary(DT)
+
+rpart.plot(DT, extra = "auto")
+
+
+
+```
+
+```{r}
+library(pROC)
+library(MLmetrics)
+library(caret)
+predictions <- predict(DT, newdata = test_X)
+predicted_labels <- ifelse(predictions >= 0.5, 1, 0)
+
+# create confusion matrix
+confmatobj <- ConfusionMatrix(predictions, test_y)
+confmatobj
+
+confmatobj <- ConfusionMatrix(predicted_labels, test_y)
+confmatobj
+
+# Calculate accuracy
+
+
+accuracy <- mean(predicted_labels == test_y)
+
+# Calculate ROC curve and AUC
+
+roc_obj <- roc(test_y, predictions)
+roc_auc <- auc(roc_obj)
+
+
+# Print the accuracy and AUC
+print(paste("Accuracy:", accuracy))
+print(paste("ROC AUC:", roc_auc))
+
+
+# Calculate precision, recall, and F1 score
+precision <- confmatobj[2, 2] / sum(confmatobj[, 2])
+recall <- confmatobj[2, 2] / sum(confmatobj[2, ])
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+# Print the results
+cat("Precision:", precision, "\n")
+cat("Recall:", recall, "\n")
+cat("F1 Score:", f1_score, "\n")
+```
+
+
+
+
